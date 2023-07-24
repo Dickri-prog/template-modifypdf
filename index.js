@@ -3,15 +3,93 @@ const app = express()
 const cors = require('cors');
 const fileUpload = require('express-fileupload')
 const jwt = require('jsonwebtoken');
+const { Octokit } = require("octokit");
 
-let templateData = [];
+let templatesData = [];
+
+let shaData = null
+let fetchedData = false
 
 app.use(fileUpload());
 
 
 app.use(cors({
-  origin: ['https://seller-id.tiktok.com', 'https://seller.shopee.co.id', 'https://sellercenter.lazada.co.id']
+  origin: "*"
 }));
+
+const octokit = new Octokit({
+  auth: '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'
+})
+
+async function fetchContentFile() {
+  const fetchingData = await octokit.request('GET /repos/Dickri-prog/jsonData/contents/template-modifypdf/templatesData.json', {
+  owner: 'Dickri-prog',
+  repo: 'jsonData',
+  path: 'template-modifypdf/templatesData.json',
+  headers: {
+    'X-GitHub-Api-Version': '2022-11-28'
+  }
+}).then((result) => {
+  shaData = result['data']['sha']
+  const base64Data = result['data']['content']
+  const buffer = Buffer.from(base64Data, 'base64');
+  const originalString = buffer.toString();
+  //
+  templatesData = JSON.parse(originalString)
+  console.log("fetched")
+  return true
+}).catch(error => {
+  console.error(error.message)
+  return false
+})
+
+return fetchingData
+}
+
+function checkingData(req, res, next) {
+
+  if (fetchedData === false) {
+    fetchedData = fetchContentFile().then(result => {
+      if (result) {
+        console.log(templatesData)
+        next()
+      }else {
+        return res.json({
+            isLoggedin: false,
+            message: "Something Wrong, contact us"
+        })
+      }
+    })
+  }else {
+    console.log(templatesData)
+    next()
+  }
+}
+
+async function updateFile() {
+    const updatedContent = Buffer.from(JSON.stringify(templatesData, null, 2)).toString('base64');
+    const updatedData = await octokit.request('PUT /repos/Dickri-prog/jsonData/contents/template-modifypdf/templatesData.json', {
+      owner: 'Dickri-prog',
+      repo: 'jsonData',
+      sha: shaData,
+      path: 'template-modifypdf/templatesData.json',
+      message: 'update usersData.json',
+      content: updatedContent,
+      headers: {
+        'X-GitHub-Api-Version': '2022-11-28'
+      }
+    })
+      .then(result => {
+        shaData = result['data']['content']['sha']
+        return true
+      })
+      .catch(error => {
+        console.error(error.message);
+        return false
+      })
+
+      return updatedData
+}
 
 
 function authenticateToken(req, res, next) {
@@ -30,29 +108,24 @@ function authenticateToken(req, res, next) {
 }
 
 
-app.get('/template', authenticateToken, async (req, res) => {
+app.get('/template', [checkingData, authenticateToken], async (req, res) => {
 
+  console.log(req.headers.origin)
 
+  console.log("getted")
   try {
-      const userId = req.id
-      const findTemplateIndex = templateData.findIndex((item) => item.id == userId)
+    const userId = req.id
+    const findTemplateIndex = templatesData.findIndex((item) => item.id == userId)
 
-      if (findTemplateIndex != -1) {
-        const templateResult = templateData[findTemplateIndex]
+    if (findTemplateIndex != -1) {
+      const templateResult = templatesData[findTemplateIndex]
 
-        res.json(templateResult.templateFile)
-      }else {
-        // throw new Error("Template not found!!!")
-        res.json({})
-      }
+      res.json(templateResult.templateFile)
+    } else {
+      res.json({})
+    }
 
   } catch (e) {
-    // if (e.name == 'Error') {
-    //   return res.json({
-    //     status: "failed",
-    //     message: e.message
-    //   })
-    // }
 
     res.json({
       status: "failed",
@@ -62,19 +135,19 @@ app.get('/template', authenticateToken, async (req, res) => {
 
 })
 
-app.delete('/template', authenticateToken, async (req, res) => {
+app.delete('/template', [checkingData, authenticateToken], async (req, res) => {
 
   try {
     const userId = req.id
-    const findTemplateIndex = templateData.findIndex(item => item.id == userId)
+    const findTemplateIndex = templatesData.findIndex(item => item.id == userId)
 
     if (findTemplateIndex != -1) {
-      templateData.splice(findTemplateIndex, 1);
+      templatesData.splice(findTemplateIndex, 1);
       res.json({
         status: "success",
         message: "removing Template Succesfully!!!"
       })
-    }else {
+    } else {
       throw new Error("Template not found!!!")
     }
   } catch (e) {
@@ -94,16 +167,16 @@ app.delete('/template', authenticateToken, async (req, res) => {
 
 })
 
-app.post('/template', authenticateToken, async (req, res) => {
+app.post('/template', [checkingData, authenticateToken], async (req, res) => {
 
   try {
     const userId = req.id
     const templateFileName = req.body.name
-    const findTemplateIndex = templateData.findIndex(item => item.id == userId)
+    const findTemplateIndex = templatesData.findIndex(item => item.id == userId)
 
     if (findTemplateIndex != -1) {
       throw new Error("Template Already exists!!!")
-    }else {
+    } else {
 
       const templateFile = req.files.templateFile
 
@@ -120,23 +193,31 @@ app.post('/template', authenticateToken, async (req, res) => {
       ]
 
       if (arrayImageExt.indexOf(templateFileSplit[1]) != -1) {
-        const concateBase64 = "data::image/" + templateFileSplit[1] + ";base64," + base64String
 
         const data = {
           id: userId,
           templateFile: {
-            name:   templateFileName,
-            base64: concateBase64
+            name: templateFileName,
+            base64: base64String
           }
         }
 
-        templateData.push(data)
+        templatesData.push(data)
 
-        res.json({
-          status: "success",
-          message: "Adding Template Succesfully!!!"
-        })
-      }else {
+        const updatedContent = await updateFile()
+
+        if (updatedContent) {
+          res.json({
+            status: "success",
+            message: "Adding Template Succesfully!!!"
+          })
+        }else {
+          res.json({
+            status: "failed",
+            message: "Upload Failed!!!"
+          })
+        }
+      } else {
         res.json({
           status: "failed",
           message: "template File Template not supported!!!"
@@ -150,8 +231,6 @@ app.post('/template', authenticateToken, async (req, res) => {
         message: e.message
       })
     }
-
-    console.error(e.message)
 
     res.json({
       status: "failed",
