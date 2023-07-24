@@ -17,8 +17,10 @@ app.use(cors({
   origin: "*"
 }));
 
+
+
 const octokit = new Octokit({
-  auth: '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'
+  auth: process.env.githubSecretKey
 })
 
 async function fetchContentFile() {
@@ -97,7 +99,7 @@ function authenticateToken(req, res, next) {
   if (!token) {
     return res.sendStatus(401);
   }
-  jwt.verify(token, 'KYYKYKKY-ykkykyyk-578875', (err, user) => {
+  jwt.verify(token, process.env.webTokenSecretKey, (err, user) => {
     if (err) {
       return res.sendStatus(403);
     }
