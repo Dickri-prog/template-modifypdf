@@ -18,32 +18,32 @@ app.use(cors({
 }));
 
 const octokit = new Octokit({
-  auth: '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'
+  auth: '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'
 })
 
 async function fetchContentFile() {
   const fetchingData = await octokit.request('GET /repos/Dickri-prog/jsonData/contents/template-modifypdf/templatesData.json', {
-  owner: 'Dickri-prog',
-  repo: 'jsonData',
-  path: 'template-modifypdf/templatesData.json',
-  headers: {
-    'X-GitHub-Api-Version': '2022-11-28'
-  }
-}).then((result) => {
-  shaData = result['data']['sha']
-  const base64Data = result['data']['content']
-  const buffer = Buffer.from(base64Data, 'base64');
-  const originalString = buffer.toString();
-  //
-  templatesData = JSON.parse(originalString)
-  console.log("fetched")
-  return true
-}).catch(error => {
-  console.error(error.message)
-  return false
-})
+    owner: 'Dickri-prog',
+    repo: 'jsonData',
+    path: 'template-modifypdf/templatesData.json',
+    headers: {
+      'X-GitHub-Api-Version': '2022-11-28'
+    }
+  }).then((result) => {
+    shaData = result['data']['sha']
+    const base64Data = result['data']['content']
+    const buffer = Buffer.from(base64Data, 'base64');
+    const originalString = buffer.toString();
+    //
+    templatesData = JSON.parse(originalString)
+    console.log("fetched")
+    return true
+  }).catch(error => {
+    console.error(error.message)
+    return false
+  })
 
-return fetchingData
+  return fetchingData
 }
 
 function checkingData(req, res, next) {
@@ -51,44 +51,43 @@ function checkingData(req, res, next) {
   if (fetchedData === false) {
     fetchedData = fetchContentFile().then(result => {
       if (result) {
-        console.log(templatesData)
         next()
-      }else {
+      } else {
+
         return res.json({
-            isLoggedin: false,
-            message: "Something Wrong, contact us"
+          isLoggedin: false,
+          message: "Something Wrong, contact us"
         })
       }
     })
-  }else {
-    console.log(templatesData)
+  } else {
     next()
   }
 }
 
 async function updateFile() {
-    const updatedContent = Buffer.from(JSON.stringify(templatesData, null, 2)).toString('base64');
-    const updatedData = await octokit.request('PUT /repos/Dickri-prog/jsonData/contents/template-modifypdf/templatesData.json', {
-      owner: 'Dickri-prog',
-      repo: 'jsonData',
-      sha: shaData,
-      path: 'template-modifypdf/templatesData.json',
-      message: 'update usersData.json',
-      content: updatedContent,
-      headers: {
-        'X-GitHub-Api-Version': '2022-11-28'
-      }
+  const updatedContent = Buffer.from(JSON.stringify(templatesData, null, 2)).toString('base64');
+  const updatedData = await octokit.request('PUT /repos/Dickri-prog/jsonData/contents/template-modifypdf/templatesData.json', {
+    owner: 'Dickri-prog',
+    repo: 'jsonData',
+    sha: shaData,
+    path: 'template-modifypdf/templatesData.json',
+    message: 'update templatesData.json',
+    content: updatedContent,
+    headers: {
+      'X-GitHub-Api-Version': '2022-11-28'
+    }
+  })
+    .then(result => {
+      shaData = result['data']['content']['sha']
+      return true
     })
-      .then(result => {
-        shaData = result['data']['content']['sha']
-        return true
-      })
-      .catch(error => {
-        console.error(error.message);
-        return false
-      })
+    .catch(error => {
+      console.error(error.message);
+      return false
+    })
 
-      return updatedData
+  return updatedData
 }
 
 
@@ -109,9 +108,6 @@ function authenticateToken(req, res, next) {
 
 
 app.get('/template', [checkingData, authenticateToken], async (req, res) => {
-
-  console.log(req.headers.origin)
-
   console.log("getted")
   try {
     const userId = req.id
@@ -211,7 +207,7 @@ app.post('/template', [checkingData, authenticateToken], async (req, res) => {
             status: "success",
             message: "Adding Template Succesfully!!!"
           })
-        }else {
+        } else {
           res.json({
             status: "failed",
             message: "Upload Failed!!!"
