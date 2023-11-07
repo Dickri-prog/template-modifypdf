@@ -141,10 +141,22 @@ app.delete('/template', [checkingData, authenticateToken], async (req, res) => {
 
     if (findTemplateIndex != -1) {
       templatesData.splice(findTemplateIndex, 1);
-      res.json({
-        status: "success",
-        message: "removing Template Succesfully!!!"
-      })
+
+      const updatedContent = await updateFile()
+
+      if (updatedContent) {
+        res.json({
+          status: "success",
+          message: "removing Template Succesfully!!!"
+        })
+      } else {
+        res.json({
+          status: "failed",
+          message: "Someting wrong!!!"
+        })
+      }
+
+      
     } else {
       throw new Error("Template not found!!!")
     }
